@@ -1,0 +1,44 @@
+{
+  "title": "Kimi Code Sessions",
+  "description": "Settings for the Kimi Code sessions side panel.",
+  "type": "object",
+  "jupyter.lab.setting-icon": "jupyterlab_kimi_code_extension:kimi",
+  "jupyter.lab.setting-icon-label": "Kimi Code Sessions",
+  "properties": {
+    "presentationMode": {
+      "type": "string",
+      "title": "Presentation mode",
+      "description": "How session rows are labelled. `name` (default) shows the session title Kimi records for the project (a custom title shows through); the initial name is taken from the project folder name, then the path is walked up to disambiguate when two projects share a folder name. `path` shows the project path relative to the JupyterLab notebook root (absolute if outside it).",
+      "enum": ["name", "path"],
+      "default": "name"
+    },
+    "recentLimit": {
+      "type": "integer",
+      "title": "Recent items count",
+      "description": "Number of sessions listed in the Recent section, sorted by last activity (descending). The section displays up to 10 rows and scrolls for the rest.",
+      "default": 10,
+      "minimum": 1,
+      "maximum": 100
+    },
+    "yoloMode": {
+      "type": "boolean",
+      "title": "YOLO mode",
+      "description": "When enabled, newly spawned and resumed sessions are launched with `--yolo`. Kimi auto-approves regular tool calls without asking - only enable in workspaces you trust.",
+      "default": false
+    },
+    "colouredTabs": {
+      "type": "boolean",
+      "title": "Coloured terminal tabs",
+      "description": "When enabled (default), a terminal running Kimi has its dock tab tinted with a colour derived deterministically from that conversation's session id (Kimi has no `/color` command, so the tint is stable per conversation instead of user-set). Turning it off clears the tint from Kimi terminals and stops it being applied. Requires `jupyterlab_colourful_tab_extension`; without it there is no tint either way.",
+      "default": true
+    },
+    "sidebar": {
+      "type": "string",
+      "title": "Sidebar position",
+      "description": "Which JupyterLab sidebar to dock the panel to. `right` (default) keeps it clear of the file browser. `left` puts it next to the file browser. Takes effect immediately.",
+      "enum": ["left", "right"],
+      "default": "right"
+    }
+  },
+  "additionalProperties": false
+}

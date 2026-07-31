@@ -23,9 +23,14 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-    "jupyter_server>=2.4.0,<3"
+    "jupyter_server>=2.4.0,<3",
+    "jupyterlab_colourful_tab_extension>=1.0.19",
+    "send2trash",
 ]
 dynamic = ["version", "description", "authors", "urls", "keywords"]
+
+[project.scripts]
+jupyterlab_kimi_code = "jupyterlab_kimi_code_extension.cli:main"
 
 [project.optional-dependencies]
 dev = [

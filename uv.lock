@@ -966,10 +966,21 @@ wheels = [
 ]
 
 [[package]]
+name = "jupyterlab-colourful-tab-extension"
+version = "1.1.16"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/fd/cb/0b76bb96c0d2194887598dc19c120d3e3b4ac117c556ed155d63c5887c4f/jupyterlab_colourful_tab_extension-1.1.16.tar.gz", hash = "sha256:88e9ee0ada52515ed91aacb82c1507b9cdea7db30f8b6873eaf2ba3caeb7765a", size = 616451, upload-time = "2026-07-20T15:17:13.363Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/33/78/10015eee77f4cdebeff4b9f9038ee770957b0a93c38b7020e2c0f887cdde/jupyterlab_colourful_tab_extension-1.1.16-py3-none-any.whl", hash = "sha256:0edae200daa9eff0d952c517007fa5a771f4bcd95e693c542d02e11bdd481c69", size = 26688, upload-time = "2026-07-20T15:17:11.948Z" },
+]
+
+[[package]]
 name = "jupyterlab-kimi-code-extension"
 source = { editable = "." }
 dependencies = [
     { name = "jupyter-server" },
+    { name = "jupyterlab-colourful-tab-extension" },
+    { name = "send2trash" },
 ]
 
 [package.optional-dependencies]
@@ -991,10 +1002,12 @@ requires-dist = [
     { name = "jupyter-builder", marker = "extra == 'dev'", specifier = ">=1.2.0" },
     { name = "jupyter-server", specifier = ">=2.4.0,<3" },
     { name = "jupyterlab", marker = "extra == 'dev'", specifier = ">=4" },
+    { name = "jupyterlab-colourful-tab-extension", specifier = ">=1.0.19" },
     { name = "pytest", marker = "extra == 'test'" },
     { name = "pytest-asyncio", marker = "extra == 'test'" },
     { name = "pytest-cov", marker = "extra == 'test'" },
     { name = "pytest-jupyter", extras = ["server"], marker = "extra == 'test'", specifier = ">=0.6.0" },
+    { name = "send2trash" },
 ]
 provides-extras = ["dev", "test"]
 

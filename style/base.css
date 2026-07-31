@@ -1,5 +1,848 @@
 /*
     See the JupyterLab Developer Guide for useful CSS Patterns:
-
     https://jupyterlab.readthedocs.io/en/stable/developer/css.html
 */
+
+.jp-KimiSessionsPanel {
+  /* Single source for row height: the section list caps and the `all`
+     floor below derive from it via calc(), so a density change moves the
+     clamp's row-aligned endpoints with the rows (claude DEF-12). The 33vh
+     mid-band still cuts mid-row on purpose - the partial row is the
+     scroll-continuation cue. */
+  --kcs-row-height: 24px;
+
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background-color: var(--jp-layout-color1);
+  color: var(--jp-ui-font-color1);
+  font-family: var(--jp-ui-font-family);
+  font-size: var(--jp-ui-font-size1);
+  height: 100%;
+  min-width: 0;
+}
+
+.jp-KimiSessionsPanel-header {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--jp-border-color2);
+  background: var(--jp-layout-color2);
+  flex: 0 0 auto;
+  min-height: 24px;
+}
+
+/* The panel title and section headers mirror the file browser's headers
+   (jp-Favorites-header / jp-FileBrowser-header) so the sidebar reads
+   uniformly: 600 weight, uppercase, ui-font-size0, 1px tracking. */
+.jp-KimiSessionsPanel-title {
+  flex: 1 1 auto;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-size: var(--jp-ui-font-size0);
+  color: var(--jp-ui-font-color1);
+}
+
+.jp-KimiSessionsPanel-iconButton {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  border-radius: 2px;
+  display: flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  color: var(--jp-ui-font-color2);
+}
+
+.jp-KimiSessionsPanel-iconButton:hover {
+  background: var(--jp-layout-color3);
+  color: var(--jp-ui-font-color1);
+}
+
+.jp-KimiSessionsPanel-iconButton.jp-mod-active {
+  background: var(--jp-layout-color3);
+  color: var(--jp-brand-color1);
+}
+
+.jp-KimiSessionsPanel-iconButton svg {
+  width: 14px;
+  height: 14px;
+}
+
+.jp-KimiSessionsPanel-searchWrap {
+  flex: 0 0 auto;
+  display: flex;
+  position: relative;
+  margin: 4px 8px;
+}
+
+/* `display: flex` above would beat the user-agent `[hidden] { display: none }`,
+   so the hidden state has to be restated. */
+.jp-KimiSessionsPanel-searchWrap[hidden] {
+  display: none;
+}
+
+.jp-KimiSessionsPanel-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+
+  /* Right padding keeps the text clear of the clear button. */
+  padding: 2px 22px 2px 6px;
+  background: var(--jp-layout-color1);
+  color: var(--jp-ui-font-color1);
+  border: 1px solid var(--jp-border-color2);
+  border-radius: 2px;
+  font-family: inherit;
+  font-size: var(--jp-ui-font-size1);
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* WebKit draws its own cancel button on `type="search"`; ours replaces it,
+   and without this the two sit side by side. */
+.jp-KimiSessionsPanel-search::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
+/* Inside the field's right edge, sharing its background so it reads as part
+   of the input rather than a button laid over it. Inset by the 1px border so
+   it never covers the frame, and the background is deliberately identical in
+   every state - hover feedback comes from the icon alone. */
+.jp-KimiSessionsPanel-searchClear {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  bottom: 1px;
+  width: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  background: var(--jp-layout-color1);
+}
+
+.jp-KimiSessionsPanel-searchClear svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* The icon carries `jp-icon3`, whose fill the theme drives, so the hover
+   state has to override the fill - `color` alone would do nothing. */
+.jp-KimiSessionsPanel-searchClear .jp-icon3 {
+  fill: var(--jp-ui-font-color3);
+}
+
+.jp-KimiSessionsPanel-searchClear:hover .jp-icon3 {
+  fill: var(--jp-ui-font-color1);
+}
+
+.jp-KimiSessionsPanel-search:focus {
+  border-color: var(--jp-brand-color1);
+}
+
+.jp-KimiSessionsPanel-search::placeholder {
+  color: var(--jp-ui-font-color3);
+}
+
+/* The body is the safety valve of the section layout (claude DEF-12): in normal
+   windows the `all` section absorbs all slack via flex and the body never
+   scrolls; only when the window is so short that the sections' minimum sizes
+   cannot fit does the body itself scroll, so no section is ever clipped. */
+.jp-KimiSessionsPanel-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden auto;
+  min-height: 0;
+}
+
+.jp-KimiSessionsPanel-empty,
+.jp-KimiSessionsPanel-emptySection {
+  padding: 8px 12px;
+  color: var(--jp-ui-font-color3);
+  font-style: italic;
+}
+
+/* Favourites/Recent size to their content; the cap lives on their LIST
+   (below) with a 5-row floor, so a small section can never be capped under
+   its own content and self-scroll (claude DEF-12). */
+.jp-KimiSessionsPanel-section {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--jp-border-color3);
+}
+
+/* `all` is the unbounded internal scroller: it grows to fill the remaining
+   body. Collapsed (header-only) it must not shrink - flex-shrink 0 here -
+   or a crowded body squashes the bare header to a sliver. */
+.jp-KimiSessionsPanel-section[data-section='all'] {
+  flex: 1 0 auto;
+}
+
+/* Expanded `all` (it has a list) shrinks when space is tight, down to a
+   header + 3 rows floor - past that the body scrolls instead of clipping.
+   min-height must be explicit: the automatic minimum would be the list's
+   full CONTENT height (intrinsic sizing ignores overflow) and the section
+   would never shrink, forcing the whole body to scroll. */
+.jp-KimiSessionsPanel-section[data-section='all']:has(
+    > .jp-KimiSessionsPanel-list
+  ) {
+  flex-shrink: 1;
+  min-height: calc(24px + 3 * var(--kcs-row-height));
+}
+
+.jp-KimiSessionsPanel-sectionHeader {
+  /* Content-sized to ~24px (4px padding + a ui-font-size0 line); the
+     `all` floor calc below hardcodes that as its 24px header term - a
+     header density change must be reflected there. */
+  flex: 0 0 auto;
+
+  /* When the body scrolls (short-window safety valve, claude DEF-12) each header
+     sticks to the top edge within its own section, so scrolled rows keep
+     their section label. Inert while the body fits - sticky in a
+     non-scrolling container changes nothing. */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 4px 8px;
+  background: var(--jp-layout-color2);
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--jp-ui-font-color1);
+  font-family: inherit;
+  font-size: var(--jp-ui-font-size0);
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.jp-KimiSessionsPanel-sectionHeader:hover {
+  background: var(--jp-layout-color3);
+}
+
+.jp-KimiSessionsPanel-caret {
+  width: 14px;
+  display: inline-block;
+  color: var(--jp-ui-font-color2);
+}
+
+.jp-KimiSessionsPanel-sectionLabel {
+  flex: 1 1 auto;
+}
+
+.jp-KimiSessionsPanel-list {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 0;
+
+  /* Reserve the scrollbar gutter in every section so star/time columns
+     line up across the entire panel, scrollbar or not. */
+  scrollbar-gutter: stable;
+}
+
+/* Cap for Favourites/Recent lists: at most 10 rows, yielding to 33vh in
+   mid-height windows so the body keeps fitting, but never below 5 rows -
+   the floor is what keeps the claude DEF-12 bug dead (a bare-vh cap fell below a
+   2-row section's own height in short windows and made it self-scroll). */
+.jp-KimiSessionsPanel-section .jp-KimiSessionsPanel-list {
+  max-height: clamp(
+    calc(5 * var(--kcs-row-height)),
+    33vh,
+    calc(10 * var(--kcs-row-height))
+  );
+}
+
+.jp-KimiSessionsPanel-section[data-section='all'] .jp-KimiSessionsPanel-list {
+  /* No cap - `all` scrolls internally within the section's floor above. */
+  max-height: none;
+}
+
+.jp-KimiSessionsPanel-row {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  height: var(--kcs-row-height);
+  line-height: var(--kcs-row-height);
+  cursor: pointer;
+  gap: 6px;
+  user-select: none;
+  font-size: var(--jp-ui-font-size1);
+}
+
+.jp-KimiSessionsPanel-row:hover,
+.jp-KimiSessionsPanel-row.jp-mod-active {
+  background: var(--jp-layout-color2);
+}
+
+.jp-KimiSessionsPanel-row.jp-mod-active {
+  background: var(--jp-layout-color3);
+}
+
+/* Rows are keyboard-focusable, and the UA's default ring is drawn outside the
+   row box - the list's `overflow-y: auto` then clips it to two stray
+   horizontal lines. An inset ring stays inside the clip. */
+.jp-KimiSessionsPanel-row:focus-visible {
+  outline: 2px solid var(--jp-brand-color1);
+  outline-offset: -2px;
+}
+
+.jp-KimiSessionsPanel-name {
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--jp-ui-font-size1);
+  color: var(--jp-ui-font-color1);
+}
+
+/* Fixed-width spacer before the name: keeps the name column aligned with
+   rows that are mid-removal (whose spinner occupies this slot). */
+.jp-KimiSessionsPanel-dotPlaceholder {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  background-color: transparent;
+}
+
+/* Branch icon + conversation count, hugging the name text inside the
+   ellipsised name span (not flexed to the row edge). */
+.jp-KimiSessionsPanel-branchBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+  color: var(--jp-ui-font-color2);
+  font-size: var(--jp-ui-font-size0);
+  vertical-align: middle;
+}
+
+.jp-KimiSessionsPanel-branchBadgeIcon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.jp-KimiSessionsPanel-branchBadgeIcon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.jp-KimiSessionsPanel-favStar {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+
+  /* Dim the standard jp-icon3 star so the favourite marker is quiet, not an
+     alarm - lowers its visual weight against the row text. */
+  opacity: 0.5;
+}
+
+.jp-KimiSessionsPanel-favStar svg {
+  width: 12px;
+  height: 12px;
+}
+
+@keyframes jp-kimi-sessions-panel-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.jp-KimiSessionsPanel-iconButton.jp-mod-spinning svg {
+  animation: jp-kimi-sessions-panel-spin 0.9s linear infinite;
+}
+
+.jp-kimi-sessions-panel-spinner {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--jp-border-color2);
+  border-top-color: var(--jp-brand-color1);
+  animation: jp-kimi-sessions-panel-spin 0.7s linear infinite;
+  display: inline-block;
+}
+
+/* Row-removal spinner: sized down to the 8px placeholder slot it replaces
+   (see .jp-KimiSessionsPanel-dotPlaceholder) so the name column stays
+   aligned while a row is mid-removal. */
+.jp-KimiSessionsPanel-spinner {
+  width: 8px;
+  height: 8px;
+}
+
+/* Reduced motion: swap the rotating spinners for a steady opacity pulse so
+   activity is still indicated without continuous rotation. */
+@keyframes jp-kimi-sessions-panel-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jp-KimiSessionsPanel-iconButton.jp-mod-spinning svg,
+  .jp-kimi-sessions-panel-spinner {
+    animation: jp-kimi-sessions-panel-pulse 1.6s ease-in-out infinite;
+  }
+}
+
+/* Full-panel veil shown only during an explicit refresh (refresh button or
+   panel show) - the background 30 s poll never raises it. The rule is gated
+   on :not([hidden]) because this author `display` would otherwise beat the
+   UA `[hidden] { display: none }` rule and pin the veil permanently on. */
+.jp-KimiSessionsPanel-loading:not([hidden]) {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--jp-layout-color1) 65%, transparent);
+}
+
+.jp-KimiSessionsPanel-loadingSpinner {
+  width: 24px;
+  height: 24px;
+  border-width: 3px;
+}
+
+.jp-KimiSessionsPanel-launchOverlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 8px;
+  min-width: 240px;
+}
+
+.jp-KimiSessionsPanel-launchSpinner {
+  width: 28px;
+  height: 28px;
+  border-width: 3px;
+}
+
+.jp-KimiSessionsPanel-cleanupBody {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 8px;
+  min-width: 280px;
+}
+
+.jp-KimiSessionsPanel-cleanupProgress {
+  width: 100%;
+}
+
+.jp-KimiSessionsPanel-cleanupError {
+  color: var(--jp-error-color1);
+}
+
+.jp-KimiSessionsPanel-row.jp-mod-busy {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/*
+ * Vertically centre context-menu icons with the label text. Lumino's
+ * .lm-Menu-itemIcon is display:table-cell so an inline SVG sits on the
+ * row's text baseline by default. JL's stock CSS adds margin-top:-2px on
+ * the cell which works for its own icons; for ours we additionally shift
+ * the SVG to the cell middle so the trash glyph aligns with "Remove from
+ * Kimi" instead of hanging.
+ *
+ * Exclude separator rows: JL draws the separator as a border-top on an
+ * ::after inside every cell of the row (icon + label + shortcut), so all
+ * segments must share one baseline to read as a single line. Applying
+ * vertical-align:middle to the separator's icon cell offsets its segment
+ * from the label cell's baseline default, breaking the divider under the
+ * icon column.
+ */
+.jp-KimiSessionsContextMenu
+  .lm-Menu-item:not([data-type='separator'])
+  .lm-Menu-itemIcon {
+  vertical-align: middle;
+}
+
+.jp-KimiSessionsContextMenu .lm-Menu-itemIcon svg {
+  vertical-align: middle;
+  display: block;
+  margin: 0 auto;
+}
+
+/* ============================================================
+   Sessions Management popup - Duoptimum Hub design language,
+   driven entirely by JupyterLab theme variables so a theme flip
+   (light / dark / custom) restyles the whole screen at once. The
+   --kcs-* tokens map the design system onto --jp-* vars: the look
+   is the design language, the colours are the current theme.
+   ============================================================ */
+.jp-KimiSessionsPanel-branchPopup {
+  --kcs-radius-sm: 4px;
+  --kcs-radius: 6px;
+  --kcs-radius-lg: 8px;
+  --kcs-surface: var(--jp-layout-color1);
+  --kcs-surface-hover: var(--jp-layout-color2);
+  --kcs-border: var(--jp-border-color2);
+  --kcs-border-subtle: var(--jp-border-color3);
+  --kcs-text: var(--jp-ui-font-color1);
+  --kcs-text-muted: var(--jp-ui-font-color2);
+
+  /* font-color3 is the disabled/hint level - too dim for content in some themes
+     (e.g. Stellars Dark renders it ~#5a5a5a, near-invisible on the surface), so
+     readable secondary labels (times, "current", counts) stay at font-color2. */
+  --kcs-text-subtle: var(--jp-ui-font-color2);
+  --kcs-accent: var(--jp-brand-color1);
+  --kcs-accent-soft: color-mix(
+    in srgb,
+    var(--jp-brand-color1) 14%,
+    transparent
+  );
+  --kcs-danger: var(--jp-error-color1);
+  --kcs-danger-soft: color-mix(
+    in srgb,
+    var(--jp-error-color1) 15%,
+    transparent
+  );
+
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 360px;
+}
+
+/* Design-language text input: 6px radius, accent focus ring. */
+.jp-KimiSessionsPanel-branchSearch {
+  width: 100%;
+  box-sizing: border-box;
+  height: 30px;
+  padding: 0 11px;
+  background: var(--kcs-surface);
+  color: var(--kcs-text);
+  border: 1px solid var(--kcs-border);
+  border-radius: var(--kcs-radius);
+  font-family: inherit;
+  font-size: var(--jp-ui-font-size1);
+  outline: none;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.jp-KimiSessionsPanel-branchSearch:focus {
+  border-color: var(--kcs-accent);
+  box-shadow: 0 0 0 3px var(--kcs-accent-soft);
+}
+
+/* Header strip above the list - select-all left, count right. */
+.jp-KimiSessionsPanel-branchHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px;
+}
+
+.jp-KimiSessionsPanel-branchHeaderCount {
+  color: var(--kcs-text-subtle);
+  font-size: var(--jp-ui-font-size0);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Fixed-width first column so the checkbox (branch rows) and the empty cell
+   (current row) keep the name column aligned, giving a table feel. */
+.jp-KimiSessionsPanel-branchSelectCell {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* The list is a surface card; rows are flush and hairline-separated. The
+   rounded corners clip the row hover fills (overflow-y establishes the clip). */
+.jp-KimiSessionsPanel-branchList {
+  max-height: 300px;
+  overflow-y: auto;
+  position: relative;
+  background: var(--kcs-surface);
+  border: 1px solid var(--kcs-border);
+  border-radius: var(--kcs-radius-lg);
+}
+
+/* Visually-hidden polite live region (delete announcements). */
+.jp-KimiSessionsPanel-srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.jp-KimiSessionsPanel-branchRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  height: 30px;
+  padding: 0 10px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--kcs-border-subtle);
+  font-size: var(--jp-ui-font-size1);
+}
+
+.jp-KimiSessionsPanel-branchRow:last-child {
+  border-bottom: none;
+}
+
+.jp-KimiSessionsPanel-branchRow:hover {
+  background: var(--kcs-surface-hover);
+}
+
+.jp-KimiSessionsPanel-branchLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--kcs-text);
+}
+
+/* Copy id - design-language action icon: wireframe by default, hovers to a
+   surface tint. Square 24px hit target keeps it aligned in the row. */
+.jp-KimiSessionsPanel-branchCopy {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--kcs-radius-sm);
+  background: transparent;
+  color: var(--kcs-text-subtle);
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.jp-KimiSessionsPanel-branchCopy:hover {
+  background: var(--kcs-surface-hover);
+  color: var(--kcs-text);
+}
+
+/* Per-row "Open" launches the conversation in its own terminal. Design-language
+   list button: outlined accent, fills to the accent on hover (6px radius). */
+.jp-KimiSessionsPanel-branchOpen {
+  flex: none;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--jp-brand-color1);
+  border-radius: var(--kcs-radius);
+  background: transparent;
+  color: var(--jp-brand-color1);
+  font-size: var(--jp-ui-font-size0);
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.jp-KimiSessionsPanel-branchOpen:hover {
+  background: var(--jp-brand-color1);
+  color: var(--jp-ui-inverse-font-color1);
+}
+
+.jp-KimiSessionsPanel-branchTime {
+  flex: none;
+  min-width: 4em;
+  white-space: nowrap;
+  text-align: right;
+  color: var(--kcs-text-subtle);
+  font-size: var(--jp-ui-font-size0);
+  font-variant-numeric: tabular-nums;
+}
+
+.jp-KimiSessionsPanel-branchRow input[type='checkbox'] {
+  flex: none;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--jp-brand-color1);
+}
+
+/* The current conversation is pinned at the top of the scroll area and
+   accented (brand left-bar + soft tint, the design-language left-edge accent)
+   so it reads as the active one - not dimmed; not selectable or deletable. */
+.jp-KimiSessionsPanel-branchRow.jp-mod-current {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  cursor: default;
+  background: var(--kcs-surface-hover);
+  border-left: 3px solid var(--jp-brand-color1);
+  padding-left: 7px;
+}
+
+.jp-KimiSessionsPanel-branchRow.jp-mod-current:hover {
+  background: var(--kcs-surface-hover);
+}
+
+/* The current row's select cell is an empty alignment spacer - no pointer. */
+.jp-KimiSessionsPanel-branchRow.jp-mod-current
+  .jp-KimiSessionsPanel-branchSelectCell {
+  cursor: default;
+}
+
+/* Plain, understated "current" marker - deliberately not a loud chip. */
+.jp-KimiSessionsPanel-branchCurrentBadge {
+  flex: none;
+  white-space: nowrap;
+  color: var(--kcs-text-subtle);
+  font-size: var(--jp-ui-font-size0);
+}
+
+.jp-KimiSessionsPanel-branchSelectAll {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 2px;
+  cursor: pointer;
+  color: var(--kcs-text-subtle);
+  font-size: var(--jp-ui-font-size0);
+  user-select: none;
+}
+
+.jp-KimiSessionsPanel-branchSelectAll input[type='checkbox'] {
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--jp-brand-color1);
+}
+
+.jp-KimiSessionsPanel-branchFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 26px;
+}
+
+.jp-KimiSessionsPanel-branchSelCount {
+  color: var(--kcs-text-subtle);
+  font-size: var(--jp-ui-font-size0);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The post-delete "N deleted" feedback reads at full strength - it is the
+   outcome cue that stands in for a confirmation prompt. */
+.jp-KimiSessionsPanel-branchSelCount.jp-mod-deleted {
+  color: var(--kcs-text);
+}
+
+/* While a delete is in flight the whole body is scrimmed so a mid-flight tick,
+   a select-all, a search or a second delete cannot race the async refetch. The
+   Dialog's Cancel button is outside the body and stays usable. */
+.jp-KimiSessionsPanel-branchPopup.jp-mod-busy {
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+/* Destructive: deletes immediately (no confirmation). Design-language
+   list-danger button - always an OUTLINE, never a filled primary: a dim,
+   inactive outline while nothing is selected, a lit error outline once a
+   selection arms it, and only a soft error tint on hover (6px radius). */
+.jp-KimiSessionsPanel-branchDelete {
+  height: 26px;
+  padding: 0 12px;
+  border: 1px solid var(--jp-error-color1);
+  border-radius: var(--kcs-radius);
+  background: transparent;
+  color: var(--jp-error-color1);
+  font-size: var(--jp-ui-font-size0);
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+/* Disabled = inactive outline: theme border + muted text, plainly not primary
+   and not actionable, but still legible (no wash-out). */
+.jp-KimiSessionsPanel-branchDelete:disabled {
+  cursor: default;
+  border-color: var(--kcs-border);
+  color: var(--kcs-text-muted);
+}
+
+/* Hover while armed stays an outline - a soft error tint, not a solid fill. */
+.jp-KimiSessionsPanel-branchDelete:hover:not(:disabled) {
+  background: var(--kcs-danger-soft);
+  color: var(--jp-error-color1);
+}
+
+/* Last-activity time on session rows - dim, right-aligned column with a
+   shared 4em floor so values line up across rows (growing for wide values
+   like `412d ago`); the star column sits before it. */
+.jp-KimiSessionsPanel-rowTime {
+  flex: 0 0 auto;
+  min-width: 4em;
+  white-space: nowrap;
+  text-align: right;
+  color: var(--jp-ui-font-color2);
+  font-size: var(--jp-ui-font-size0);
+
+  /* Digits on a common stem, matching .jp-KimiSessionsPanel-branchTime - the
+     4em floor only reserves the column, it does not align the values. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* Age emphasis: a row active within the last minute reads bright, a row
+   idle for over a week dims; both decay/promote on the next refresh. The
+   "now" time label shares the active colour - same <60s threshold. */
+.jp-KimiSessionsPanel-row.jp-mod-recentlyActive .jp-KimiSessionsPanel-name,
+.jp-KimiSessionsPanel-row.jp-mod-recentlyActive .jp-KimiSessionsPanel-rowTime {
+  color: var(--jp-brand-color1);
+}
+
+.jp-KimiSessionsPanel-row.jp-mod-stale {
+  opacity: 0.65;
+}
