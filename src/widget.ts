@@ -295,13 +295,15 @@ export class KimiCodeSessionsWidget extends Widget {
     const body = document.createElement('div');
     body.className = 'jp-KimiSessionsPanel-body';
     // A poll tick blocked by the hover guard (see _startPolling) is deferred,
-    // not dropped - a cursor merely parked over the sidebar would otherwise
-    // freeze the list indefinitely. Flush the deferred tick on the way out.
+    // not dropped. Flush it on the way out - but mirror the poll's context-menu
+    // guard: opening a Lumino menu at the cursor fires mouseleave on the body
+    // with no pointer movement at all, and flushing there would rebuild the
+    // rows the menu is acting on. Leaving the flag set means the next leave -
+    // or the next tick - still delivers the deferred refresh.
     body.addEventListener('mouseleave', () => {
-      if (!this._pendingRefresh) {
+      if (!this._pendingRefresh || this._contextMenu.isAttached) {
         return;
       }
-      this._pendingRefresh = false;
       this._fetch().catch(err =>
         console.error('[jupyterlab_kimi_code_extension]', err)
       );
@@ -462,6 +464,11 @@ export class KimiCodeSessionsWidget extends Widget {
   // ------------------------------------------------------------------ data
 
   private async _fetch(): Promise<void> {
+    // Every refresh path funnels through here - poll tick, mouseleave flush,
+    // the refresh button, onAfterShow, post-launch - so clearing the deferral
+    // flag here is what keeps a stale `true` (set by a tick that was then
+    // superseded) from firing one redundant fetch on the next mouseleave.
+    this._pendingRefresh = false;
     // `cache: 'no-store'` so the manual refresh button (and the post-launch
     // refresh) always re-read the server's view of ~/.kimi-code rather than
     // a possibly-stale browser-cached response.
@@ -603,8 +610,13 @@ export class KimiCodeSessionsWidget extends Widget {
       message.textContent = `Removed ${data.removed_count} parallel session${
         data.removed_count === 1 ? '' : 's'
       }.`;
-      // Refresh so the row's extra_sessions count (and menu label) update
-      await this._fetch();
+      // Refresh so the row's extra_sessions count (and menu label) update.
+      // Self-caught: the cleanup itself already succeeded, so a failed refresh
+      // must not fall into the catch below and rewrite the message above into
+      // "Cleanup failed" for an operation that removed the sessions.
+      await this._fetch().catch(err =>
+        console.error('[jupyterlab_kimi_code_extension]', err)
+      );
     } catch (err) {
       bar.remove();
       message.classList.add('jp-KimiSessionsPanel-cleanupError');
@@ -1108,15 +1120,17 @@ export class KimiCodeSessionsWidget extends Widget {
       });
 
     // Same reason as the scroll capture, for the keyboard: the wipe below
-    // destroys the focused row and activeElement falls back to BODY, so a
-    // keyboard user loses their place on every poll tick. Record which row
-    // held focus and re-focus its rebuilt counterpart below - the Manage
-    // Sessions popup restores focus after its own rebuild the same way.
+    // destroys the focused element and activeElement falls back to BODY, so a
+    // keyboard user loses their place. Matching on [data-row-key] rather than
+    // the row class covers BOTH focusables in this subtree - rows, and the
+    // section header buttons whose own click handler calls _render(), which
+    // otherwise dropped focus on every collapse/expand. The Manage Sessions
+    // popup restores focus after its own rebuild the same way.
     const active = document.activeElement;
     const focusedRowKey =
       active instanceof HTMLElement && this._bodyEl.contains(active)
-        ? (active.closest<HTMLElement>('.jp-KimiSessionsPanel-row')?.dataset
-            .rowKey ?? null)
+        ? (active.closest<HTMLElement>('[data-row-key]')?.dataset.rowKey ??
+          null)
         : null;
 
     this._bodyEl.innerHTML = '';
@@ -1165,13 +1179,14 @@ export class KimiCodeSessionsWidget extends Widget {
       });
     this._bodyEl.scrollTop = bodyScroll;
 
-    // Restore keyboard focus onto the rebuilt row (preventScroll so the
-    // scroll positions just restored above are not overridden).
+    // Restore keyboard focus onto the rebuilt row or section header
+    // (preventScroll so the scroll positions just restored above are not
+    // overridden).
     if (focusedRowKey !== null) {
-      const rows = Array.from(
-        this._bodyEl.querySelectorAll<HTMLElement>('.jp-KimiSessionsPanel-row')
+      const focusables = Array.from(
+        this._bodyEl.querySelectorAll<HTMLElement>('[data-row-key]')
       );
-      const match = rows.find(r => r.dataset.rowKey === focusedRowKey);
+      const match = focusables.find(el => el.dataset.rowKey === focusedRowKey);
       match?.focus({ preventScroll: true });
     }
   }
@@ -1185,6 +1200,9 @@ export class KimiCodeSessionsWidget extends Widget {
     const header = document.createElement('button');
     header.className = 'jp-KimiSessionsPanel-sectionHeader';
     header.setAttribute('aria-expanded', String(expanded));
+    // Focus-restore key (see _render). A bare section key cannot collide with
+    // a row key, which is always a newline-joined triple.
+    header.dataset.rowKey = key;
 
     const caret = document.createElement('span');
     caret.className = 'jp-KimiSessionsPanel-caret';
@@ -2233,7 +2251,11 @@ export class KimiCodeSessionsWidget extends Widget {
       });
       return null;
     } finally {
-      await this._fetch();
+      // Self-caught: a throw inside `finally` overrides the try's `return`, so
+      // a successful delete whose follow-up refresh failed would reject the
+      // whole call - swallowing the "N deleted" status and leaving the deleted
+      // rows on screen.
+      await this._fetch().catch(() => undefined);
     }
   }
 
@@ -2385,10 +2407,12 @@ export class KimiCodeSessionsWidget extends Widget {
         return;
       }
       // Defer the tick while the pointer is inside the panel body - a poll
-      // re-render can re-sort rows under the cursor mid-click. The body's
-      // mouseleave handler flushes it as soon as the pointer leaves, so a
-      // parked cursor delays the refresh rather than freezing the list.
-      if (this._bodyEl.matches(':hover')) {
+      // re-render can re-sort rows under the cursor mid-click. Defer at most
+      // ONE tick: a cursor parked over the sidebar while the user works in the
+      // terminal never fires mouseleave, so deferring unconditionally would
+      // freeze the list for as long as they type. The second tick refreshes
+      // regardless, bounding staleness at 2x POLL_INTERVAL_MS.
+      if (this._bodyEl.matches(':hover') && !this._pendingRefresh) {
         this._pendingRefresh = true;
         return;
       }

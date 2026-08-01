@@ -435,7 +435,10 @@ describe('Manage Sessions popup contract', () => {
   it('delete posts to sessions/delete-branches and resyncs the panel', () => {
     const del = method(/private async _deleteBranches[\s\S]*?\n  \}/);
     expect(del).toMatch(/'sessions\/delete-branches'/);
-    expect(del).toMatch(/finally[\s\S]*?await this\._fetch\(\)/);
+    // Self-caught: a throw inside `finally` overrides the try's `return`, so an
+    // unguarded refresh failure rejects the whole call after a SUCCESSFUL
+    // delete - swallowing the "N deleted" status and leaving the rows on screen.
+    expect(del).toMatch(/finally[\s\S]*?await this\._fetch\(\)\.catch\(/);
     const delHandler = (popup.match(
       /deleteBtn\.addEventListener\('click'[\s\S]*?\n    \}\);/
     ) ?? [''])[0];
@@ -474,8 +477,17 @@ describe('cleanup popup contract', () => {
 
   it('reports the removed count and refreshes on success', () => {
     expect(cleanup).toMatch(/Removed \$\{data\.removed_count\}/);
-    const successBlock = (cleanup.match(/try[\s\S]*?catch/) ?? [''])[0];
-    expect(successBlock).toMatch(/await this\._fetch\(\)/);
+    const postIdx = cleanup.indexOf("'sessions/cleanup'");
+    const refreshIdx = cleanup.indexOf('await this._fetch()');
+    expect(postIdx).toBeGreaterThan(-1);
+    expect(refreshIdx).toBeGreaterThan(postIdx);
+  });
+
+  it('self-catches the success refresh so a cleanup that worked is not reported as failed', () => {
+    // The refresh sits inside the same try as the POST. Unguarded, a failed
+    // GET sessions falls into the catch and overwrites "Removed N parallel
+    // sessions." with "Cleanup failed" - for an operation that did remove them.
+    expect(cleanup).toMatch(/await this\._fetch\(\)\.catch\(/);
   });
 });
 
@@ -662,6 +674,18 @@ describe('panel accessibility and poll contracts', () => {
     expect(render).toMatch(/focus\(\{ preventScroll: true \}\)/);
   });
 
+  it('focus restore covers section headers, not only rows', () => {
+    // The header is a <button> inside _bodyEl whose own click handler calls
+    // _render(), so collapsing a section destroyed its own focus on 100% of
+    // toggles - deterministic, unlike the poll-tick case. Matching on
+    // [data-row-key] rather than the row class covers both focusables.
+    expect(renderSection).toMatch(/header\.dataset\.rowKey = key/);
+    expect(render).toMatch(/closest<HTMLElement>\('\[data-row-key\]'\)/);
+    expect(render).toMatch(
+      /querySelectorAll<HTMLElement>\('\[data-row-key\]'\)/
+    );
+  });
+
   it('reduced motion reaches the spinners AND the indeterminate progress', () => {
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)/);
     expect(css).toMatch(/jp-kimi-sessions-panel-pulse/);
@@ -699,13 +723,30 @@ describe('panel accessibility and poll contracts', () => {
     expect(fb).not.toMatch(/Notification\.warning/);
   });
 
-  it('a poll tick blocked by the hover guard is deferred, not dropped', () => {
+  it('a poll tick blocked by the hover guard is deferred at most one tick', () => {
     const poll = method(/private _startPolling[\s\S]*?\n  \}/);
-    expect(poll).toMatch(/matches\(':hover'\)/);
+    // Bounded by !_pendingRefresh: a cursor parked over the sidebar never
+    // fires mouseleave, so an unbounded guard freezes the list for as long as
+    // the user types in the terminal. The second tick refreshes regardless.
+    expect(poll).toMatch(/matches\(':hover'\) && !this\._pendingRefresh/);
     expect(poll).toMatch(/this\._pendingRefresh = true/);
     const shell = method(/private _buildShell[\s\S]*?\n  \}/);
     expect(shell).toMatch(/addEventListener\('mouseleave'/);
-    expect(shell).toMatch(/this\._pendingRefresh = false/);
+    // Every refresh path funnels through _fetch, so the flag is cleared there
+    // rather than in the flush handler alone.
+    const fetch = method(/private async _fetch[\s\S]*?\n  \}/);
+    expect(fetch).toMatch(/this\._pendingRefresh = false/);
+  });
+
+  it('the mouseleave flush mirrors the poll context-menu guard', () => {
+    // Opening a Lumino menu at the cursor fires mouseleave on the body with no
+    // pointer movement, so an unguarded flush rebuilds the rows the open menu
+    // is acting on - the exact case the poll's isAttached check prevents.
+    const shell = method(/private _buildShell[\s\S]*?\n  \}/);
+    const flush = (shell.match(
+      /addEventListener\('mouseleave'[\s\S]*?\n {4}\}\);/
+    ) ?? [''])[0];
+    expect(flush).toMatch(/this\._contextMenu\.isAttached/);
   });
 
   it('empty states distinguish "nothing on disk" from "no matches"', () => {
