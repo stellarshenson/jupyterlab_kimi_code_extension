@@ -214,6 +214,48 @@ test('context menu offers branch submenus for a multi-conversation project', asy
   ).toBeVisible();
 });
 
+test('a long conversation title cannot stretch the branch submenu (DEF-18)', async ({
+  page
+}) => {
+  // Session 0 is seeded with a paragraph-length auto-generated title, which
+  // is what kimi produces for any session the user has not renamed. Before
+  // the cap this rendered an 850px submenu - most of the window - because
+  // Lumino sets no max-width on `.lm-Menu-itemLabel`.
+  const menu = await openRowMenu(page);
+  await menu
+    .locator('.lm-Menu-itemLabel', { hasText: 'Open Branched Conversation' })
+    .hover();
+  // Wait for the submenu to actually attach before reading it. `.last()`
+  // alone is not enough: until the submenu opens it resolves to the root
+  // menu, whose own command items are visible, so every assertion below
+  // would silently run against the wrong menu.
+  await expect(page.locator('.lm-Menu')).toHaveCount(2, { timeout: 10000 });
+  const submenu = page.locator('.lm-Menu').nth(1);
+  const entries = submenu.locator('.lm-Menu-item[data-type="command"]');
+  await expect(entries.first()).toBeVisible({ timeout: 10000 });
+  // Guard the same mistake from the other side.
+  await expect(submenu).not.toContainText('Remove from Kimi');
+
+  // The long title is cut and marked with an ellipsis...
+  const labels = await submenu.locator('.lm-Menu-itemLabel').allInnerTexts();
+  const longOne = labels.find(t => t.startsWith('List ONLY the names'));
+  expect(longOne).toBeDefined();
+  expect(longOne).toContain('…');
+  expect(longOne).not.toContain('no other text.');
+
+  // ...while the short id and relative time that tell two branches apart
+  // survive the cap.
+  expect(longOne).toMatch(/\([0-9a-f]{8}\) - /);
+
+  // And the rendered submenu stays a menu, not a banner across the window.
+  // Measured: 850px before the cap, 600px here and 492px against real kimi
+  // data after it. The bar is a regression guard sitting between those two
+  // populations, not an aesthetic target - remove the cap and it fails.
+  const box = await submenu.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.width).toBeLessThan(700);
+});
+
 test('two different branches open as two independent terminals', async ({
   page
 }) => {

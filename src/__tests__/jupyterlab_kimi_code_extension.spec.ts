@@ -215,6 +215,28 @@ describe('fork (branch session) contract', () => {
     expect(widgetSrc).not.toMatch(/session_id\.slice\(0,\s*8\)/);
     expect(widgetSrc).not.toMatch(/current\.slice\(0,\s*8\)/);
   });
+
+  it('caps the branch title inside menu items but not in the popup (DEF-18)', () => {
+    // Lumino sets no max-width on `.lm-Menu-itemLabel`, and kimi auto-titles
+    // a session from its first prompt, so an uncapped title stretched the
+    // submenu to 850px - most of the window. Measured live before the fix.
+    const menuLabel = method(/private _branchMenuLabel[\s\S]*?\n  \}/);
+    expect(menuLabel).toMatch(/BRANCH_MENU_TITLE_MAX/);
+    expect(menuLabel).toMatch(/slice\(0, BRANCH_MENU_TITLE_MAX\)/);
+    expect(widgetSrc).toMatch(/const BRANCH_MENU_TITLE_MAX = \d+;/);
+    // Only the title is trimmed: the short id and relative time are what
+    // tell two branches apart, so they must survive the cap.
+    expect(menuLabel).toMatch(/\$\{title\} \(\$\{shortId\}\)/);
+    // Both Lumino submenus go through the capped variant...
+    const menuUses = widgetSrc.match(/this\._branchMenuLabel\(b\)/g) ?? [];
+    expect(menuUses).toHaveLength(2);
+    // ...while the popup keeps the full string for its CSS ellipsis, and the
+    // aria-label keeps it in full for screen readers.
+    expect(widgetSrc).toMatch(
+      /label\.textContent = this\._branchDisplayName\(b\)/
+    );
+    expect(widgetSrc).toMatch(/`Select \$\{this\._branchDisplayName\(b\)\}`/);
+  });
 });
 
 /**

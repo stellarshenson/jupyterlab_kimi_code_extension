@@ -79,11 +79,23 @@ for _i in range(3):
     # current conversation (recency - no pin is seeded), the other two are
     # its branches.
     _t = _now - 30 + _i * 10
+    # Session 0 carries a long auto-generated title. Kimi titles a session
+    # from its first prompt whenever the user has not renamed it, so a title
+    # running to a full paragraph is the norm rather than an edge case -
+    # seeding only short ones let DEF-18 (uncapped menu labels stretching the
+    # branch submenu across the window) pass nine flows unnoticed.
+    _title = (
+        "List ONLY the names of the User-scope skills available to you "
+        "(from the skills section of your system context), one per line, "
+        "no other text."
+        if _i == 0
+        else f"Conversation {_i}"
+    )
     _state_path = os.path.join(_sdir, "state.json")
     with open(_state_path, "w") as f:
         json.dump(
             {
-                "title": f"Conversation {_i}",
+                "title": _title,
                 "isCustomTitle": False,
                 "workDir": _project_root,
                 "createdAt": _iso_z(_t - 60),

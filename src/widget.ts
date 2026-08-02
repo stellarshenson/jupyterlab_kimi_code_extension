@@ -60,6 +60,12 @@ const POLL_INTERVAL_MS = 30_000;
 // 'now' relative-time label so the two cues never drift apart.
 const RECENTLY_ACTIVE_MS = 60_000;
 const DEFAULT_RECENT_LIMIT = 10;
+// Cap for a conversation title inside a Lumino menu item. Lumino sets no
+// `max-width` on `.lm-Menu-itemLabel`, and kimi auto-titles a session from
+// its first prompt, so an uncapped title renders a submenu wide enough to
+// cover the window (DEF-18). The Manage Sessions popup is unaffected - its
+// own CSS ellipsis adapts to the available width.
+const BRANCH_MENU_TITLE_MAX = 60;
 const EXPANDED_STORAGE_KEY = 'jupyterlab_kimi_code_extension:expanded';
 
 type SectionKey = 'favourites' | 'recent' | 'all';
@@ -1478,6 +1484,20 @@ export class KimiCodeSessionsWidget extends Widget {
     return b.label === shortId ? b.label : `${b.label} (${shortId})`;
   }
 
+  /** Menu-item variant of the above: caps the title at
+   * BRANCH_MENU_TITLE_MAX so a long auto-generated one cannot stretch the
+   * submenu across the window (DEF-18). Only the title is trimmed - the
+   * short id and the relative time that follow it are what distinguish two
+   * branches, so they always survive. */
+  private _branchMenuLabel(b: IBranch): string {
+    const shortId = this._shortSessionId(b.session_id);
+    const title =
+      b.label.length > BRANCH_MENU_TITLE_MAX
+        ? `${b.label.slice(0, BRANCH_MENU_TITLE_MAX).replace(/\s+$/, '')}…`
+        : b.label;
+    return b.label === shortId ? title : `${title} (${shortId})`;
+  }
+
   private _setRefreshSpinning(on: boolean): void {
     if (!this._refreshBtn) {
       return;
@@ -1807,7 +1827,7 @@ export class KimiCodeSessionsWidget extends Widget {
             command: 'kimi-code-sessions:switch-branch',
             args: {
               session_id: b.session_id,
-              label: `${this._branchDisplayName(b)} - ${this._formatRelativeTime(b.file_mtime)}`
+              label: `${this._branchMenuLabel(b)} - ${this._formatRelativeTime(b.file_mtime)}`
             }
           });
         }
@@ -1826,7 +1846,7 @@ export class KimiCodeSessionsWidget extends Widget {
             command: 'kimi-code-sessions:open-branch',
             args: {
               session_id: b.session_id,
-              label: `${this._branchDisplayName(b)} - ${this._formatRelativeTime(b.file_mtime)}`
+              label: `${this._branchMenuLabel(b)} - ${this._formatRelativeTime(b.file_mtime)}`
             }
           });
         }
