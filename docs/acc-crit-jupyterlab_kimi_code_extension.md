@@ -159,16 +159,20 @@ Kimi has no fork CLI flag; the extension forks server-side by copying the sessio
   - log: 2026-07-31 implemented (v0.1.1)
 - [x] **Fork launch** - frontend launches returned id with `kimi -S` immediately; no watcher/polling (fork is synchronous)
   - log: 2026-07-31 implemented (v0.1.1)
-- [x] **Galata: branch flow** - branch menu item produces a second independent terminal (`/api/terminals` delta >= 2)
+- [x] **Galata: branch flow** - branch menu item produces a second independent terminal; verified by the recorded `launch-terminal` payloads (two distinct ids, neither the current conversation), not by terminal count alone
   - log: 2026-07-31 criterion added, ui-tests in flight
   - log: 2026-07-31 closed: ui-tests implemented and green (9 passed, failure capability proven by mutation)
+  - log: 2026-08-03 REOPENED then re-closed - the flow backing this criterion was hollow (`DEF-19`): it read the submenu before Lumino attached it and clicked Resume / Resume (YOLO) on the root menu, so the terminal-count delta was satisfied without any branch being opened. Criterion restated in terms of launched session ids, which a count cannot fake; failure capability re-proven by mutation (reverting the gate fails on the current id appearing in the payloads)
 
 ## Conversation Switcher and Manage Sessions
 
 Right-click submenus over sibling sessions of one workspace; popup manages the full list.
 
-- [x] **Switch submenu** - up to 5 most recent siblings, label = title (short id) - relative time, plus `Manage Sessions... (n)`
+- [x] **Switch submenu** - up to 5 most recent siblings, label = title (short id) - relative time, plus `Manage Sessions... (n)`; the title is capped at 60 DISPLAY COLUMNS (East Asian wide characters and emoji count 2), the id and time always survive the cap
   - log: 2026-07-31 implemented (v0.1.1)
+  - log: 2026-08-03 cap added (`DEF-18`) - an uncapped auto-generated title stretched the submenu to ~850px; the first fix counted UTF-16 code units and missed CJK entirely (60 Han glyphs measured 851-862px), so the budget is now in display columns and lives in `src/label.ts` where jest can execute it
+- [x] **Popup width** - the Manage Sessions dialog is bounded so a long branch label ellipsises rather than widening the dialog
+  - log: 2026-08-03 added (`DEF-20`) - the popup had no max-width and JupyterLab's dialog caps at an absolute 1000px, so it grew to ~955px and the label's `text-overflow: ellipsis` never engaged
 - [x] **Switch persist** - switch touches target state.json mtime and writes the pin; row updates on refresh
   - log: 2026-07-31 implemented (v0.1.1)
 - [x] **Switch 404** - switching a vanished branch returns 404 branch_not_found, panel refreshes

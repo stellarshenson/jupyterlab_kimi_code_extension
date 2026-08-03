@@ -54,6 +54,49 @@ function projectRow(panel: any) {
     .first();
 }
 
+/**
+ * Hover a submenu item and return the submenu that opens, gated on it
+ * actually attaching.
+ *
+ * `page.locator('.lm-Menu').last()` is NOT enough on its own: until Lumino's
+ * open delay elapses (~366ms) only the root menu exists, `.last()` resolves to
+ * IT, and its own command items are visible - so `entries.first()` passes
+ * against "Resume" and the whole test silently drives the wrong menu. That is
+ * not hypothetical: it is how `two different branches open as two independent
+ * terminals` passed for months while launching the current session twice.
+ */
+async function openSubmenu(page: any, menu: any, label: string) {
+  await menu.locator('.lm-Menu-itemLabel', { hasText: label }).hover();
+  await expect(page.locator('.lm-Menu')).toHaveCount(2, { timeout: 10000 });
+  const submenu = page.locator('.lm-Menu').nth(1);
+  // Counter-guard: the root menu carries this item, the submenu never does.
+  await expect(submenu).not.toContainText('Remove from Kimi');
+  return submenu;
+}
+
+/** The seeded workspace's encoded_path, read from the server. */
+async function currentEncodedPath(page: any): Promise<string> {
+  const res = await page.request.get(
+    '/jupyterlab-kimi-code-extension/sessions'
+  );
+  return (await res.json()).sessions[0].encoded_path;
+}
+
+/** Record the session_id of every launch-terminal POST the page issues. */
+function recordLaunches(page: any): string[] {
+  const launched: string[] = [];
+  page.on('request', (req: any) => {
+    if (req.url().includes('launch-terminal') && req.method() === 'POST') {
+      try {
+        launched.push(JSON.parse(req.postData() ?? '{}').session_id ?? null);
+      } catch {
+        launched.push('<unparseable>');
+      }
+    }
+  });
+  return launched;
+}
+
 /** Right-click the seeded "kimiproj" row and return its context menu. */
 async function openRowMenu(page: any) {
   const panel = await openPanel(page);
@@ -222,19 +265,9 @@ test('a long conversation title cannot stretch the branch submenu (DEF-18)', asy
   // the cap this rendered an 850px submenu - most of the window - because
   // Lumino sets no max-width on `.lm-Menu-itemLabel`.
   const menu = await openRowMenu(page);
-  await menu
-    .locator('.lm-Menu-itemLabel', { hasText: 'Open Branched Conversation' })
-    .hover();
-  // Wait for the submenu to actually attach before reading it. `.last()`
-  // alone is not enough: until the submenu opens it resolves to the root
-  // menu, whose own command items are visible, so every assertion below
-  // would silently run against the wrong menu.
-  await expect(page.locator('.lm-Menu')).toHaveCount(2, { timeout: 10000 });
-  const submenu = page.locator('.lm-Menu').nth(1);
+  const submenu = await openSubmenu(page, menu, 'Open Branched Conversation');
   const entries = submenu.locator('.lm-Menu-item[data-type="command"]');
   await expect(entries.first()).toBeVisible({ timeout: 10000 });
-  // Guard the same mistake from the other side.
-  await expect(submenu).not.toContainText('Remove from Kimi');
 
   // The long title is cut and marked with an ellipsis...
   const labels = await submenu.locator('.lm-Menu-itemLabel').allInnerTexts();
@@ -247,10 +280,18 @@ test('a long conversation title cannot stretch the branch submenu (DEF-18)', asy
   // survive the cap.
   expect(longOne).toMatch(/\([0-9a-f]{8}\) - /);
 
+  // The wide-script title is capped too. A character-counting cap left this
+  // one untouched (60 Han glyphs = ~2x the width of 60 Latin), so the ellipsis
+  // is the assertion that a code-unit cap cannot satisfy.
+  const cjkOne = labels.find(t => t.startsWith('请仔细阅读'));
+  expect(cjkOne).toBeDefined();
+  expect(cjkOne).toContain('…');
+  expect(cjkOne).toMatch(/\([0-9a-f]{8}\) - /);
+
   // And the rendered submenu stays a menu, not a banner across the window.
-  // Measured: 850px before the cap, 600px here and 492px against real kimi
-  // data after it. The bar is a regression guard sitting between those two
-  // populations, not an aesthetic target - remove the cap and it fails.
+  // Measured against this fixture: 850px uncapped Latin, 851px uncapped CJK,
+  // 495px capped. The bar is a regression guard between those populations,
+  // not an aesthetic target - remove the cap and it fails on either script.
   const box = await submenu.boundingBox();
   expect(box).not.toBeNull();
   expect(box!.width).toBeLessThan(700);
@@ -260,14 +301,13 @@ test('two different branches open as two independent terminals', async ({
   page
 }) => {
   const before = await terminalCount(page);
+  const launched = recordLaunches(page);
 
   // Open the first branch.
   let menu = await openRowMenu(page);
-  await menu
-    .locator('.lm-Menu-itemLabel', { hasText: 'Open Branched Conversation' })
-    .hover();
-  let submenu = page.locator('.lm-Menu').last();
-  let entries = submenu.locator('.lm-Menu-item[data-type="command"]');
+  let entries = (
+    await openSubmenu(page, menu, 'Open Branched Conversation')
+  ).locator('.lm-Menu-item[data-type="command"]');
   await expect(entries.first()).toBeVisible({ timeout: 10000 });
   await entries.first().click();
   await expect(page.locator('.jp-Terminal').first()).toBeVisible({
@@ -277,11 +317,9 @@ test('two different branches open as two independent terminals', async ({
   // Open a different branch - it must NOT replace or reuse the first
   // terminal (a branch id never matches the other branch's running id).
   menu = await openRowMenu(page);
-  await menu
-    .locator('.lm-Menu-itemLabel', { hasText: 'Open Branched Conversation' })
-    .hover();
-  submenu = page.locator('.lm-Menu').last();
-  entries = submenu.locator('.lm-Menu-item[data-type="command"]');
+  entries = (
+    await openSubmenu(page, menu, 'Open Branched Conversation')
+  ).locator('.lm-Menu-item[data-type="command"]');
   await expect(entries.nth(1)).toBeVisible({ timeout: 10000 });
   await entries.nth(1).click();
   await expect(page.locator('.jp-Terminal').first()).toBeVisible({
@@ -291,6 +329,21 @@ test('two different branches open as two independent terminals', async ({
   await expect
     .poll(() => terminalCount(page), { timeout: 15000 })
     .toBeGreaterThanOrEqual(before + 2);
+
+  // Terminal COUNT alone cannot tell a branch launch from two Resumes of the
+  // current conversation - which is exactly what this test used to do. Assert
+  // on what was actually launched: two distinct ids, neither the current one.
+  const branches = await page.request
+    .get(
+      `/jupyterlab-kimi-code-extension/sessions/branches?encoded_path=${await currentEncodedPath(page)}`
+    )
+    .then((r: any) => r.json());
+  expect(launched).toHaveLength(2);
+  expect(new Set(launched).size).toBe(2);
+  expect(launched).not.toContain(branches.current);
+  for (const id of launched) {
+    expect(branches.branches.map((b: any) => b.session_id)).toContain(id);
+  }
 });
 
 test('Manage Sessions popup exposes per-row Open buttons and dismisses on Open', async ({

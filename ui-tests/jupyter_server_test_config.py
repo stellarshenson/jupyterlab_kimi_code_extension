@@ -84,13 +84,21 @@ for _i in range(3):
     # running to a full paragraph is the norm rather than an edge case -
     # seeding only short ones let DEF-18 (uncapped menu labels stretching the
     # branch submenu across the window) pass nine flows unnoticed.
-    _title = (
-        "List ONLY the names of the User-scope skills available to you "
-        "(from the skills section of your system context), one per line, "
-        "no other text."
-        if _i == 0
-        else f"Conversation {_i}"
-    )
+    if _i == 0:
+        _title = (
+            "List ONLY the names of the User-scope skills available to you "
+            "(from the skills section of your system context), one per line, "
+            "no other text."
+        )
+    elif _i == 1:
+        # Wide-script title. Kimi is Moonshot AI's CLI, so a Chinese auto-title
+        # is an expected case - and a character-counting cap does not bound it:
+        # 60 Han glyphs measured 851-862px, at or above the 850px that filed
+        # DEF-18. Without this fixture both DEF-18 tests stay green while the
+        # panel is broken, because an untruncated title emits no ellipsis.
+        _title = "请仔细阅读并总结这个项目的架构设计文档" * 4
+    else:
+        _title = f"Conversation {_i}"
     _state_path = os.path.join(_sdir, "state.json")
     with open(_state_path, "w") as f:
         json.dump(

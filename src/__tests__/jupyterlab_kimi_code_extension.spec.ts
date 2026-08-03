@@ -14,6 +14,7 @@ import {
   colourForTerminal,
   kimiTabColour
 } from '../colour';
+import { branchMenuLabel, truncateToColumns } from '../label';
 
 const session = (over: Partial<ISession> = {}): ISession => ({
   project_path: '/p',
@@ -216,17 +217,46 @@ describe('fork (branch session) contract', () => {
     expect(widgetSrc).not.toMatch(/current\.slice\(0,\s*8\)/);
   });
 
+  it('caps the branch title by DISPLAY COLUMNS, executed not grepped (DEF-18)', () => {
+    // The first DEF-18 fix capped UTF-16 code units. 60 Han glyphs measured
+    // 851-862px in the real submenu - at or above the 850px that filed the
+    // defect - because Han renders ~1em against Latin's ~0.5em. Kimi is
+    // Moonshot AI's CLI, so a Chinese auto-title is the expected case.
+    expect(truncateToColumns('a'.repeat(60), 60)).toBe('a'.repeat(60));
+    expect(truncateToColumns('a'.repeat(61), 60)).toBe(`${'a'.repeat(60)}…`);
+    // Wide script: half as many glyphs fit in the same budget.
+    expect(truncateToColumns('请'.repeat(60), 60)).toBe(`${'请'.repeat(30)}…`);
+    expect(truncateToColumns('请'.repeat(30), 60)).toBe('请'.repeat(30));
+    // Astral characters are never split into a lone surrogate (chromium
+    // paints the remnant as the replacement glyph).
+    const straddle = `${'a'.repeat(59)}🎯tail`;
+    const cut = truncateToColumns(straddle, 60);
+    expect(cut).toBe(`${'a'.repeat(59)}…`);
+    expect(/[\uD800-\uDBFF]$/.test(cut.slice(0, -1))).toBe(false);
+    // A cut landing immediately after a space does not leave it dangling
+    // (59 chars + space fills the budget, so 'b' is what trips the cut).
+    expect(truncateToColumns(`${'a'.repeat(59)} bb`, 60)).toBe(
+      `${'a'.repeat(59)}…`
+    );
+    // Composition: the id survives the cap, and is dropped when the title
+    // already IS the id (the server's fallback, always <= 8 chars).
+    expect(branchMenuLabel('请'.repeat(60), 'a1b2c3d4')).toBe(
+      `${'请'.repeat(30)}… (a1b2c3d4)`
+    );
+    expect(branchMenuLabel('a1b2c3d4', 'a1b2c3d4')).toBe('a1b2c3d4');
+  });
+
   it('caps the branch title inside menu items but not in the popup (DEF-18)', () => {
     // Lumino sets no max-width on `.lm-Menu-itemLabel`, and kimi auto-titles
     // a session from its first prompt, so an uncapped title stretched the
     // submenu to 850px - most of the window. Measured live before the fix.
+    // The logic itself lives in label.ts so jest can EXECUTE it (see the
+    // test above); widget.ts must delegate rather than re-implement.
     const menuLabel = method(/private _branchMenuLabel[\s\S]*?\n  \}/);
-    expect(menuLabel).toMatch(/BRANCH_MENU_TITLE_MAX/);
-    expect(menuLabel).toMatch(/slice\(0, BRANCH_MENU_TITLE_MAX\)/);
-    expect(widgetSrc).toMatch(/const BRANCH_MENU_TITLE_MAX = \d+;/);
-    // Only the title is trimmed: the short id and relative time are what
-    // tell two branches apart, so they must survive the cap.
-    expect(menuLabel).toMatch(/\$\{title\} \(\$\{shortId\}\)/);
+    expect(menuLabel).toMatch(/branchMenuLabel\(/);
+    expect(widgetSrc).toMatch(/import \{ branchMenuLabel \} from '\.\/label'/);
+    // No code-unit slicing may creep back into the widget.
+    expect(widgetSrc).not.toMatch(/BRANCH_MENU_TITLE_MAX/);
     // Both Lumino submenus go through the capped variant...
     const menuUses = widgetSrc.match(/this\._branchMenuLabel\(b\)/g) ?? [];
     expect(menuUses).toHaveLength(2);

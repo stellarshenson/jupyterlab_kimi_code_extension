@@ -542,6 +542,14 @@
   flex-direction: column;
   gap: 10px;
   min-width: 360px;
+
+  /* Without a max the dialog grows to fit the longest branch label: an
+     auto-generated title took it to ~955px, 93% of a 1024px window, and the
+     row label's `text-overflow: ellipsis` never engaged because nothing ever
+     asked it to shrink (JupyterLab's `.jp-Dialog-content` caps at an absolute
+     1000px, so the dialog widens rather than the label shrinking). Capping
+     here is what makes that ellipsis fire. */
+  max-width: min(720px, 90vw);
 }
 
 /* Design-language text input: 6px radius, accent focus ring. */
