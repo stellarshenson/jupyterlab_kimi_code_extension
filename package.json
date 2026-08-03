@@ -1,6 +1,6 @@
 {
     "name": "jupyterlab_kimi_code_extension",
-    "version": "0.7.7",
+    "version": "0.7.8",
     "description": "Browse, resume, and manage your Kimi Code CLI sessions from a JupyterLab side panel. One click reactivates the right terminal - no duplicate tabs, live activity indicators, and favourites for the projects you keep coming back to. Companion to jupyterlab_claude_code_extension.",
     "keywords": [
         "jupyter",
