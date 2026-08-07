@@ -1,5 +1,11 @@
 # jupyterlab_kimi_code_extension
 
+> [!IMPORTANT]
+> **Superseded.** This extension is retired and no longer maintained. Its functionality lives on in
+> [jupyterlab_ai_code_assistants_extension](https://github.com/stellarshenson/jupyterlab_ai_code_assistants_extension),
+> which consolidates the Claude Code, Codex, Kimi and Gemini side panels behind one provider registry
+> and migrates settings and favourites from this extension automatically.
+
 [![GitHub Actions](https://github.com/stellarshenson/jupyterlab_kimi_code_extension/actions/workflows/build.yml/badge.svg)](https://github.com/stellarshenson/jupyterlab_kimi_code_extension/actions/workflows/build.yml)
 [![npm version](https://img.shields.io/npm/v/jupyterlab_kimi_code_extension.svg)](https://www.npmjs.com/package/jupyterlab_kimi_code_extension)
 [![PyPI version](https://img.shields.io/pypi/v/jupyterlab_kimi_code_extension.svg)](https://pypi.org/project/jupyterlab_kimi_code_extension/)
